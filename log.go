@@ -4,6 +4,7 @@ import (
 	"fmt"
 	rotatelogs "github.com/lestrrat-go/file-rotatelogs"
 	"github.com/sirupsen/logrus"
+	"io"
 	"time"
 )
 
@@ -14,16 +15,20 @@ type Options struct {
 	MaxAge time.Duration
 	MaxSize int64 // 单位：M
 	RotationTime time.Duration
+	LastLogName string
 }
 
 var defaultOpt = Options{
 	Path: "storage/log",
-	DirType: "/%Y/%m/%d/%H%M.log",
+	DirType: "/%Y/%m/%d/golog.%H%M.log",
 	Level: DebugLevel,
-	MaxSize: 15,
+	MaxSize: 15 * 1024 * 1024,
 	MaxAge: 365 * 24 * time.Hour,
 	RotationTime: 24 * time.Hour,
+	LastLogName: "golog.log",
 }
+
+var writer io.Writer
 
 func dealParams(options *Options) {
 	if options.Path == "" {
@@ -44,13 +49,16 @@ func dealParams(options *Options) {
 	if options.RotationTime == 0 {
 		options.RotationTime = defaultOpt.RotationTime
 	}
+	if options.LastLogName == "" {
+		options.LastLogName = defaultOpt.LastLogName
+	}
 	return
 }
 
 func Init(options Options) {
 	dealParams(&options)
 	writer, err := rotatelogs.New(options.Path + options.DirType,
-		rotatelogs.WithLinkName(options.Path),
+		rotatelogs.WithLinkName(options.Path + options.LastLogName),
 		rotatelogs.WithMaxAge(options.MaxAge),
 		rotatelogs.WithRotationSize(options.MaxSize),
 		)
@@ -61,6 +69,15 @@ func Init(options Options) {
 	logrus.SetLevel(options.Level)
 	logrus.SetReportCaller(true)
 	fmt.Println("log init success")
+}
+
+func GetWriter() io.Writer {
+	return writer
+}
+
+func SetWriter(w io.Writer) {
+	writer = w
+	logrus.SetOutput(writer)
 }
 
 func SetLevel(level logrus.Level) {
